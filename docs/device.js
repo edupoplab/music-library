@@ -1,0 +1,28 @@
+import {demoData} from './shared.js';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function createDeviceFlow({demo,request,showAuth,apply,stop}){
+ let stage='loading',classes=[],deviceClass=null,working=false,epoch=0;
+ const seed=demoData(),key='saessak-demo-tablet-class-v1';
+ const app=document.querySelector('#app');
+ function stored(){try{return localStorage.getItem(key)}catch{return null}}
+ function heading(){showAuth();document.querySelector('#player').hidden=true}
+ function login(message=''){
+  epoch++;stage='login';classes=[];stop();heading();
+  app.innerHTML=`<section class="auth tabletsetup"><span class="brandmark">♫</span><span class="eyebrow">${deviceClass?'태블릿 반 변경':'처음 한 번 · 선생님 설정'}</span><h1>${deviceClass?'이 태블릿의 반을 바꿀까요?':'이 태블릿은 어느 반인가요?'}</h1><p>선생님이 인증한 뒤 반을 지정해 주세요.<br>다음부터는 우리 반 노래가 바로 열립니다.</p><div class="setupsteps"><strong>1 교사 인증</strong><span>2 반 선택</span><span>3 듣기 시작</span></div>${message?`<p class="formerror" role="alert">${esc(message)}</p>`:''}${demo?'<div class="notice">설정 과정을 살펴보는 체험 화면입니다. 실제 비밀번호를 입력하지 않습니다.</div><button class="primary" id="demoVerify">예시 교사로 인증 체험</button>':'<form id="deviceAuthForm"><label>교사 이메일<input name="email" type="email" autocomplete="username" required placeholder="초대받은 이메일"></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" required maxlength="128" placeholder="교사 계정 비밀번호"></label><button class="primary" type="submit">교사 인증하기</button><p class="formerror" role="alert"></p></form>'}<p class="formhint">설정이 끝나면 교사 로그인은 종료되고, 이 기기의 반 설정만 유지됩니다.</p>${deviceClass?'<button class="secondary wide" id="cancelDevice">반 변경 취소 · 노래로 돌아가기</button>':''}${!demo?'<p class="formhint">처음 운영을 시작한다면 PC의 교사 관리 페이지에서 관리자 계정과 반을 먼저 준비해 주세요.</p>':''}</section>`;
+  if(demo)document.querySelector('#demoVerify').onclick=()=>choose({name:'김새싹 선생님',classes:seed.classes.map(c=>({id:c.id,name:c.name}))});
+  else document.querySelector('#deviceAuthForm').onsubmit=async e=>{e.preventDefault();const form=e.target,b=new FormData(form);await task(form,async()=>{const result=await request('/api/device/auth','POST',{email:b.get('email'),password:b.get('password')});form.reset();choose(result)})};
+  document.querySelector('#cancelDevice')?.addEventListener('click',cancel);
+ }
+ function choose(result){stage='choose';classes=result.classes;heading();app.innerHTML=`<section class="auth tabletsetup"><span class="brandmark">♫</span><span class="eyebrow">교사 인증 완료</span><h1>이 태블릿의 반을 골라 주세요</h1><p>인증된 교사: ${esc(result.name)}</p><div class="setupsteps"><span>1 교사 인증 ✓</span><strong>2 반 선택</strong><span>3 듣기 시작</span></div><form id="deviceClassForm"><fieldset class="classchoices"><legend>앞으로 이 태블릿에서 들을 반</legend>${classes.map(c=>`<label><input type="radio" name="classId" value="${esc(c.id)}" required><span>${esc(c.name)}</span><span aria-hidden="true">♫</span></label>`).join('')}</fieldset>${!classes.length?'<div class="warning">배정된 반이 없습니다. 관리자에게 담당 반 배정을 요청해 주세요.</div>':''}<button class="primary" type="submit" ${classes.length?'':'disabled'}>이 반으로 설정하고 듣기</button><p class="formerror" role="alert"></p></form><p class="formhint">${demo?'체험용 반 설정을 이 브라우저에 기억합니다. 실제 설정과는 별개입니다.':'반 설정만 기기에 기억합니다. 교사 비밀번호나 관리 권한은 남기지 않습니다.'}</p><button class="tinybutton wide" id="verifyAgain">다른 교사로 다시 인증</button>${deviceClass?'<button class="secondary wide" id="cancelDevice">반 변경 취소 · 노래로 돌아가기</button>':''}</section>`;
+ document.querySelector('#deviceClassForm').onsubmit=async e=>{e.preventDefault();const form=e.target,cid=new FormData(form).get('classId');await task(form,async()=>{if(!classes.some(c=>c.id===cid))throw new Error('반을 선택해 주세요.');if(demo){try{localStorage.setItem(key,cid)}catch{throw new Error('기기 저장을 사용할 수 없습니다. 브라우저의 저장 허용 설정을 확인해 주세요.')}}else await request('/api/device/enroll','POST',{classId:cid});classes=[];await refresh()})};
+ document.querySelector('#verifyAgain').onclick=async()=>{if(!demo)await request('/api/device/cancel','POST',{});login()};document.querySelector('#cancelDevice')?.addEventListener('click',cancel);
+ }
+ async function task(form,fn){if(working)return;working=true;const btn=form.querySelector('button[type=submit]');btn.disabled=true;try{await fn()}catch(e){form.querySelector('.formerror').textContent=e.message}finally{working=false;btn.disabled=false}}
+ async function refresh(){const requestEpoch=epoch;try{let fresh;if(demo){const c=seed.classes.find(c=>c.id===stored());if(!c){deviceClass=null;login();return}fresh={classId:c.id,className:c.name,revision:0,songs:c.published.map(id=>seed.songs.find(s=>s.id===id))}}else fresh=await request('/api/device/listen');if(requestEpoch!==epoch)return;deviceClass={id:fresh.classId,name:fresh.className};stage='listening';apply(fresh)}catch(e){if(requestEpoch!==epoch)return;if(e.status===401||e.status===403){deviceClass=null;login('기기 설정이 없거나 만료되었습니다. 선생님이 다시 설정해 주세요.')}else{throw e}}}
+ async function cancel(){if(!demo)await request('/api/device/cancel','POST',{});await refresh()}
+ async function start(){if(demo){await refresh()}else{const status=await request('/api/device/enter','POST',{});deviceClass=status.configured?{name:status.className}:null;if(status.configured)await refresh();else login()}}
+ async function setup(){epoch++;stage='login';stop();if(!demo)await request('/api/device/cancel','POST',{});login()}
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&stage==='listening')refresh().catch(()=>{})});
+ setInterval(()=>{if(!document.hidden&&stage==='listening')refresh().catch(()=>{})},20000);
+ return {start,setup};
+}
