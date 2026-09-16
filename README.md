@@ -1,3 +1,17 @@
+> **온라인 배포 완료** — 아래 기존 안내는 로컬 개발 버전 기록입니다.
+
+- 유아 공통 링크: https://edupoplab.github.io/music-library/
+- 교사 로그인: https://edupoplab.github.io/music-library/?page=teacher
+- 관리자: https://edupoplab.github.io/music-library/?page=admin
+
+온라인 버전은 GitHub Pages의 docs 폴더와 Supabase의 music-api 서버를 연결합니다. 최초 관리자는 소유자에게 전달한 하루 유효 일회용 링크로 설정합니다. 계정·반·곡 정보는 비공개 music 스키마, MP3와 썸네일은 비공개 music-media 버킷에 보관합니다. 교사 계정은 앱 자체 계정이며 Supabase Authentication 목록과 별개입니다.
+
+초대 링크는 직접 전달하며 자동 이메일 발송은 아직 없습니다. 반별 연령 필드도 아직 구현되지 않았습니다. 실제 관리자 설정 후 MP3 업로드·재생 테스트를 이어서 진행합니다.
+
+화면 수정 후 `node cloud/build-pages.mjs`로 docs를 다시 생성합니다. 서버 수정은 GitHub 반영 후 Supabase 함수의 고정 커밋 주소를 변경해 재배포해야 합니다. `cloud` 폴더에서 테스트 의존성을 설치하고 `node qa.mjs`를 실행하면 PostgreSQL 호환 환경에서 권한과 저장 흐름을 검증합니다.
+
+---
+
 # 새싹나라 우리 반 음악 도서관 v0.3
 
 ## 열어 보기
