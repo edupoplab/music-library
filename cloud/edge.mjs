@@ -29,7 +29,7 @@ async function rateLimit(key){const q=query(db),now=Date.now();const rows=await 
 
 export async function handler(req){
  if(req.method==='OPTIONS')return new Response(null,{headers});
- const changed={},uploaded=[];let committed=false;
+ const changed={},uploaded=[];let committed=false,rateKey;
  try{
   if(req.method!=='POST')fail(405,'지원하지 않는 요청입니다.');
   const requestOrigin=req.headers.get('Origin');if(requestOrigin&&requestOrigin!==ORIGIN)fail(403,'허용되지 않은 사이트입니다.');
@@ -41,7 +41,7 @@ export async function handler(req){
   if(!['GET','POST','PATCH'].includes(method))fail(405,'지원하지 않는 요청입니다.');
   const keys={session:req.headers.get('x-music-session')||'',device:req.headers.get('x-music-device')||'',pairing:req.headers.get('x-music-pairing')||''};
   if(Object.values(keys).some(v=>v.length>200))fail(400,'인증 정보를 확인해 주세요.');
-  if(['/api/login','/api/device/auth','/api/accept-invite','/api/reset-password','/api/setup'].includes(p))await rateLimit(hash((req.headers.get('x-forwarded-for')||'unknown').split(',')[0]+':'+p));
+  if(['/api/login','/api/device/auth','/api/accept-invite','/api/reset-password','/api/setup'].includes(p)){rateKey=hash((req.headers.get('x-forwarded-for')||'unknown').split(',')[0]+':'+p);await rateLimit(rateKey)}
   const result=await db.begin(async sql=>{
    const q=query(sql),one=async(s,...a)=>(await q(s,...a))[0],run=q,now=Date.now();
    // Serialize mutations across edge instances; invite redemption and revision checks stay atomic.
@@ -104,6 +104,6 @@ export async function handler(req){
    if(/^\/api\/teachers\/[^/]+$/.test(p)&&method==='PATCH'){const uid=p.split('/').pop(),t=await one('SELECT * FROM music.users WHERE id=?',uid);if(!t)fail(404,'교사를 찾을 수 없습니다.');if(t.role==='admin')fail(400,'관리자 계정은 변경할 수 없습니다.');if(!Array.isArray(b.classIds))fail(400,'담당 반을 선택해 주세요.');for(const cid of b.classIds)await canClass(u,cid);await run('UPDATE music.users SET active=? WHERE id=?',b.active?1:0,uid);await run('DELETE FROM music.assignments WHERE user_id=?',uid);for(const cid of new Set(b.classIds))await run('INSERT INTO music.assignments VALUES(?,?)',uid,cid);if(!b.active){await run('DELETE FROM music.sessions WHERE user_id=?',uid);await run('DELETE FROM music.pairings WHERE user_id=?',uid)}return {ok:true}}
    fail(404,'요청을 찾을 수 없습니다.');
   });
-  committed=true;return Response.json({...result,_credentials:changed},{headers});
+  committed=true;if(rateKey)await query(db)('DELETE FROM music.attempts WHERE key=?',rateKey);return Response.json({...result,_credentials:changed},{headers});
  }catch(e){if(uploaded.length&&!committed)await removeFiles(uploaded).catch(()=>{});const status=e.status||(e.code==='23505'?409:500);if(status===500)console.error('music request failed',e.code||e.name);return Response.json({error:e.status?e.message:status===409?'이미 등록된 항목입니다.':'서버 연결을 확인해 주세요.'},{status,headers})}
 }
