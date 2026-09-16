@@ -1,0 +1,5 @@
+data/
+.env
+*.log
+node_modules/
+design-v1-backup/

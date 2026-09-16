@@ -1,0 +1,13 @@
+{
+  "name": "saessak-music-library",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/api.test.mjs tests/device.test.mjs"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
