@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'..');
 const out=path.join(root,'docs');fs.mkdirSync(out,{recursive:true});
-for(const name of ['index.html','app.js','device.js','shared.js','style.css','bird.png'])fs.copyFileSync(path.join(root,'public',name),path.join(out,name));
+for(const name of ['index.html','app.js','device.js','shared.js','style.css','bird.png','share-music-library.png'])fs.copyFileSync(path.join(root,'public',name),path.join(out,name));
 let app=fs.readFileSync(path.join(out,'app.js'),'utf8');
 app="import {cloudRequest,route,pageLink} from './cloud.js?v=kids-20260917';\n"+app;
 app=app.replaceAll('location.pathname','route');
